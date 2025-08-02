@@ -1,0 +1,79 @@
+local webhook = "https://discord.com/api/webhooks/1401149570871984169/iDFIEjj2ysvaikEof0daM602SB2VlOVf45niYmd_ZavGY227oNhf-UTAFL0Yy7vYyq9y"
+
+local default_data = { username = "vBot Status" }
+local embed = {
+    color = 10038562,
+    footer = { text = "SouleStatus by Soule Scripts | discord.gg/bwZjeMddNZ" }
+}
+
+local discordTimes = {}
+local systemInitialized = false
+
+function onHTTPResult(data, err) end
+
+function getCurrentTime()
+    local time = os.date("*t")
+    return string.format("%02d:%02d:%02d", time.hour, time.min, time.sec)
+end
+
+function sendDiscordWebhook(data)
+    local id = data.id
+    if id then
+        local dTime = discordTimes[id]
+        if dTime and os.time() < dTime then return end
+        discordTimes[id] = os.time() + (data.delayed and data.delayed or 10)
+    end
+
+    local messageWithTime = data.message
+    if not messageWithTime:find("Horário:") then
+        messageWithTime = messageWithTime .. " | Horário: " .. getCurrentTime()
+    end
+
+    local dEmbed = embed
+    if data.color then dEmbed.color = data.color end
+    dEmbed.title = "**" .. data.title .. "**"
+    dEmbed.fields = {
+        { name = "Nome", value = data.name },
+        { name = "Mensagem", value = messageWithTime }
+    }
+
+    local dataSend = default_data
+    dataSend.embeds = { dEmbed }
+    HTTP.postJSON(webhook, dataSend, onHTTPResult)
+end
+
+-- ENVIA STATUS A CADA 5 SEGUNDOS (TESTE)
+macro(5000, function()
+    local player = g_game.getLocalPlayer()
+    if not player then return end
+
+    local data = {
+        title = "Status (teste rápido)",
+        name = player:getName(),
+        message = string.format("Level: %d | Hora: %s", player:getLevel(), getCurrentTime()),
+        id = "test_status",
+        delayed = 2,
+        color = 0x00FFFF
+    }
+    sendDiscordWebhook(data)
+end)
+
+-- CAPTURA MENSAGEM DO JOGADOR E ENVIA AO DISCORD
+onTalk(function(name, level, mode, text, channelId, pos)
+    local player = g_game.getLocalPlayer()
+    if not player then return end
+
+    local data = {
+        title = "Mensagem Recebida",
+        name = player:getName(),
+        message = string.format("📨 \"%s\"", text),
+        id = "chat_message",
+        delayed = 1,
+        color = 0xFFD700
+    }
+    sendDiscordWebhook(data)
+end)
+
+UI.Separator()
+UI.Label("SouleStatus Discord ON (modo teste)")
+UI.Separator()
