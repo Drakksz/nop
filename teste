@@ -31,7 +31,6 @@ local embed = {
 -- Cache de timestamps para controle de cooldown
 local discordTimes = {}
 
-
 -- Variáveis para controle automático
 local lastLevel = 0
 local lastHP = 100
