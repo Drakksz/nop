@@ -1,151 +1,79 @@
---[[
-    Discord Webhook Automático para vBot OTC Tibia
-    ==============================================
-    
-    Propósito: Enviar notificações automáticas do status do personagem para o Discord
-    Última modificação: 2024-12-19
-    Autor: vBot Team
-    
-    Funcionalidades AUTOMÁTICAS:
-    - Status periódico (a cada 5 minutos)
-    - Level Up (detecção automática)
-    - Morte (detecção automática)
-    - Quantidade de itens do ID 14112 (a cada 5 minutos)
-    - Detecção do !balance e envio do saldo para o Discord
-]]
-
--- Configuração do webhook
 local webhook = "https://discord.com/api/webhooks/1401149570871984169/iDFIEjj2ysvaikEof0daM602SB2VlOVf45niYmd_ZavGY227oNhf-UTAFL0Yy7vYyq9y"
 
--- Dados padrão do bot
-local default_data = {
-    username = "vBot Status",
-}
-
--- Configuração do embed
+local default_data = { username = "vBot Status" }
 local embed = {
-    color = 10038562, -- Cor vermelha
-    footer = {
-        text = "SouleStatus by Soule Scripts | discord.gg/bwZjeMddNZ",
-    },
+    color = 10038562,
+    footer = { text = "SouleStatus by Soule Scripts | discord.gg/bwZjeMddNZ" }
 }
 
--- Cache de timestamps para controle de cooldown
 local discordTimes = {}
+local systemInitialized = false
 
--- Variáveis para controle automático
-local lastLevel = 0
-local lastHP = 100
-local isDead = false
-local levelStartTime = 0 -- Tempo quando começou o level atual
-local levelHistory = {} -- Histórico de tempos de level up
+function onHTTPResult(data, err) end
 
--- Variável global para controle do último saldo enviado
-local lastBalanceSent = ""
-
--- Função de callback para resultado HTTP
-function onHTTPResult(data, err)
-    if err then
-        print("Discord Webhook Error: " .. err)
-    else
-        print("Discord Webhook: Mensagem enviada com sucesso!")
-    end
+function getCurrentTime()
+    local time = os.date("*t")
+    return string.format("%02d:%02d:%02d", time.hour, time.min, time.sec)
 end
 
--- Função principal para enviar webhook
 function sendDiscordWebhook(data)
     local id = data.id
     if id then
         local dTime = discordTimes[id]
-        if dTime and os.time() < dTime then 
-            return 
-        end
+        if dTime and os.time() < dTime then return end
         discordTimes[id] = os.time() + (data.delayed and data.delayed or 10)
     end
 
-    -- Adicionar horário de envio à mensagem
     local messageWithTime = data.message
     if not messageWithTime:find("Horário:") then
         messageWithTime = messageWithTime .. " | Horário: " .. getCurrentTime()
     end
 
     local dEmbed = embed
-    if data.color then 
-        dEmbed.color = data.color 
-    end
-
+    if data.color then dEmbed.color = data.color end
     dEmbed.title = "**" .. data.title .. "**"
     dEmbed.fields = {
-        {
-            name = "Nome: ",
-            value = data.name,
-        },
-        {
-            name = "Mensagem",
-            value = messageWithTime,
-        }
+        { name = "Nome", value = data.name },
+        { name = "Mensagem", value = messageWithTime }
     }
 
     local dataSend = default_data
     dataSend.embeds = { dEmbed }
-
     HTTP.postJSON(webhook, dataSend, onHTTPResult)
 end
 
--- Adição: Verifica quantidade de item 14112 e envia !balance
-macro(300000, function() -- a cada 5 minutos
+-- ENVIA STATUS A CADA 5 SEGUNDOS (TESTE)
+macro(5000, function()
     local player = g_game.getLocalPlayer()
     if not player then return end
 
-    local count = 0
-    for _, container in pairs(g_game.getContainers()) do
-        for _, item in pairs(container:getItems()) do
-            if item:getId() == 14112 then
-                count = count + item:getCount()
-            end
-        end
-    end
-
     local data = {
-        title = 'Itens no Inventário',
+        title = "Status (teste rápido)",
         name = player:getName(),
-        message = string.format('Quantidade total do item ID 14112: %d', count),
-        id = "item14112",
-        delayed = 300,
-        color = 0x9966FF
+        message = string.format("Level: %d | Hora: %s", player:getLevel(), getCurrentTime()),
+        id = "test_status",
+        delayed = 2,
+        color = 0x00FFFF
     }
     sendDiscordWebhook(data)
-
-    -- Enviar comando para saber o saldo
-    say("!balance")
 end)
 
--- Captura do texto do balance
-onTextMessage(function(mode, text)
-    if mode == 22 then
-        local balance = text:match("Your account balance is ([%d,]+) gold coins")
-        if balance and balance ~= lastBalanceSent then
-            lastBalanceSent = balance
+-- CAPTURA MENSAGEM DO JOGADOR E ENVIA AO DISCORD
+onTalk(function(name, level, mode, text, channelId, pos)
+    local player = g_game.getLocalPlayer()
+    if not player then return end
 
-            local player = g_game.getLocalPlayer()
-            if not player then return end
-
-            local data = {
-                title = 'Saldo Bancário',
-                name = player:getName(),
-                message = string.format('Seu saldo é de: %s gold coins.', balance),
-                id = "balance",
-                delayed = 300,
-                color = 0x00CED1
-            }
-            sendDiscordWebhook(data)
-        end
-    end
+    local data = {
+        title = "Mensagem Recebida",
+        name = player:getName(),
+        message = string.format("📨 \"%s\"", text),
+        id = "chat_message",
+        delayed = 1,
+        color = 0xFFD700
+    }
+    sendDiscordWebhook(data)
 end)
 
--- Interface do usuário (apenas informativa)
 UI.Separator()
-UI.Label("SouleStatus Discord ON")
+UI.Label("SouleStatus Discord ON (modo teste)")
 UI.Separator()
-
-print("SouleStatus Discord: Sistema ativo!")
